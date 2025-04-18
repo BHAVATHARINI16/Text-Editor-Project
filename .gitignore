@@ -1,0 +1,16 @@
+# Ignore Python bytecode
+_pycache_/
+
+# Ignore build directories
+build/
+
+# Ignore distribution folder
+dist/
+
+# Ignore IDE configurations (optional)
+.idea/
+*.swp
+
+# Ignore log files and temporary files
+*.log
+*.tmp
