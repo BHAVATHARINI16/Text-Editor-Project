@@ -18,14 +18,25 @@ root.geometry("800x600")
 
 current_font_family = "Arial"
 current_font_size = 12
+current_file = None
 
 text_area = tk.Text(root, wrap="word", undo=True, font=(current_font_family, current_font_size))
 text_area.pack(expand=True, fill="both")
 
+# --- Word Counter ---
+status_bar = tk.Label(root, text="Words: 0", anchor="w")
+status_bar.pack(side="bottom", fill="x")
+
+def update_word_count(event=None):
+    words = text_area.get("1.0", "end-1c").split()
+    status_bar.config(text=f"Words: {len(words)}")
+
+text_area.bind("<KeyRelease>", update_word_count)
+
+# --- Search and Replace ---
 def find_and_replace(text_area):
     find_text = simpledialog.askstring("Find", "Enter text to find:")
     replace_text = simpledialog.askstring("Replace", "Enter replacement text:")
-
     if find_text and replace_text:
         content = text_area.get("1.0", "end")
         new_content = content.replace(find_text, replace_text)
@@ -34,11 +45,9 @@ def find_and_replace(text_area):
 
 def search_text(text_area):
     search_query = simpledialog.askstring("Search", "Enter text to search:")
-
     if search_query:
         text_area.tag_remove("highlight", "1.0", "end")
         start_index = "1.0"
-
         while True:
             start_index = text_area.search(search_query, start_index, stopindex="end")
             if not start_index:
@@ -46,9 +55,9 @@ def search_text(text_area):
             end_index = f"{start_index}+{len(search_query)}c"
             text_area.tag_add("highlight", start_index, end_index)
             start_index = end_index
-
         text_area.tag_config("highlight", background="yellow", foreground="black")
 
+# --- Restricted Action Wrapper ---
 def execute_action(action_name, text_area):
     if action_name == "delete":
         try:
@@ -60,9 +69,23 @@ def execute_action(action_name, text_area):
     elif action_name == "search":
         search_text(text_area)
 
+# --- Auto Save Logic ---
+def auto_save():
+    if current_file:
+        with open(current_file, "w") as file:
+            file.write(text_area.get("1.0", tk.END))
+    root.after(60000, auto_save)  # every 60 seconds
+
+auto_save()
+
+# --- Login System ---
+current_user = login(root)
+
+# --- Menu Bar ---
 menu_bar = tk.Menu(root)
 root.config(menu=menu_bar)
 
+# File Menu
 file_menu = tk.Menu(menu_bar, tearoff=0)
 menu_bar.add_cascade(label="File", menu=file_menu)
 file_menu.add_command(label="New", command=lambda: new_file(text_area))
@@ -72,6 +95,7 @@ file_menu.add_command(label="Save As", command=lambda: save_file_as(text_area))
 file_menu.add_separator()
 file_menu.add_command(label="Exit", command=root.quit)
 
+# Edit Menu
 edit_menu = tk.Menu(menu_bar, tearoff=0)
 menu_bar.add_cascade(label="Edit", menu=edit_menu)
 edit_menu.add_command(label="Cut", command=lambda: text_area.event_generate("<<Cut>>"))
@@ -82,11 +106,13 @@ edit_menu.add_command(label="Find & Replace", command=lambda: execute_restricted
 edit_menu.add_command(label="Delete", command=lambda: execute_restricted_action(current_user["username"], "delete", text_area, execute_action))
 edit_menu.add_command(label="Search", command=lambda: execute_restricted_action(current_user["username"], "search", text_area, execute_action))
 
+# Theme Menu
 theme_menu = tk.Menu(menu_bar, tearoff=0)
 menu_bar.add_cascade(label="Theme", menu=theme_menu)
 theme_menu.add_command(label="Light Mode", command=lambda: apply_theme(text_area, "light"))
 theme_menu.add_command(label="Dark Mode", command=lambda: apply_theme(text_area, "dark"))
 
+# Font Menu
 font_menu = tk.Menu(menu_bar, tearoff=0)
 menu_bar.add_cascade(label="Font", menu=font_menu)
 font_menu.add_command(label="Arial", command=lambda: change_font(text_area, "Arial"))
@@ -97,55 +123,15 @@ font_menu.add_command(label="Size 12", command=lambda: change_size(text_area, 12
 font_menu.add_command(label="Size 16", command=lambda: change_size(text_area, 16))
 font_menu.add_command(label="Size 20", command=lambda: change_size(text_area, 20))
 
-status_bar = tk.Label(root, text="Words: 0", anchor="w")
-status_bar.pack(side="bottom", fill="x")
-
-def update_word_count(event=None):
-    words = text_area.get("1.0", "end-1c").split()
-    status_bar.config(text=f"Words: {len(words)}")
-
-text_area.bind("<KeyRelease>", update_word_count)
-
-current_file = None
-
-def save_file(text_area):
-    global current_file
-    if current_file:
-        with open(current_file, "w") as file:
-            file.write(text_area.get("1.0", tk.END))
-    else:
-        file_path = save_file_as(text_area)
-        if file_path:
-            current_file = file_path
-
-def save_file_as(text_area):
-    global current_file
-    file_path = filedialog.asksaveasfilename(defaultextension=".txt",
-                                             filetypes=[("Text Files", "*.txt"),
-                                                        ("Python Files", "*.py"),
-                                                        ("All Files", ".*")])
-    if file_path:
-        current_file = file_path
-        with open(file_path, "w") as file:
-            file.write(text_area.get("1.0", tk.END))
-        return file_path
-    return None
-
-def auto_save():
-    if current_file:
-        save_file(text_area)
-    root.after(60000, auto_save)
-
-auto_save()
-
-# Login System
-current_user = login(root)
-
-# Admin Panel logic (with notification)
+# --- Admin Panel and Request Notification ---
 if current_user["access"] == "admin":
     admin_menu = tk.Menu(menu_bar, tearoff=0)
     menu_bar.add_cascade(label="Admin", menu=admin_menu)
-    admin_menu.add_command(label="Admin Panel", command=open_admin_panel)
+
+    # This label text will be updated with notification
+    admin_label = tk.StringVar()
+    admin_label.set("Admin Panel")
+    admin_menu.add_command(labelvariable=admin_label, command=open_admin_panel)
 
     def check_pending_requests():
         while True:
@@ -161,5 +147,10 @@ if current_user["access"] == "admin":
                                     break
                         except:
                             continue
+            admin_label.set("Admin Panel (New)" if has_pending else "Admin Panel")
+            threading.Event().wait(5)
 
-            label = "Admin
+    threading.Thread(target=check_pending_requests, daemon=True).start()
+
+# --- Mainloop ---
+root.mainloop()
